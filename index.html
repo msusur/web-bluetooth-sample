@@ -1,0 +1,132 @@
+<html>
+
+<head>
+
+</head>
+
+<body>
+	<button id="search">Search for Device</button>
+	<button id="turnOn">Turn On</button>
+	<button id="turnOff">Turn Off</button>
+	<p>
+		<h1> Color Helper </h1>
+		<table id='color-table'>
+			<tr>
+				<td>
+					<label for="red">RED </label>
+					<input type="text" id="red" class="color-input" value='230'></input>
+				</td>
+				<td rowspan="3" id="palette" style="width: 200px; text-color: white;text-align: center;">
+					Click here to apply!
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<label for="green">GREEN</label>
+					<input type="text" id="green" class="color-input" value='220'></input>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					<label for="blue">BLUE</label>
+					<input type="text" id="blue" class="color-input" value='22'></input>
+				</td>
+			</tr>
+		</table>
+	</p>
+	<script>
+			(function(nav, doc){
+				'use strict';
+
+				var ledCharacteristic, currentColor;
+
+				var turnOnElement = doc.getElementById('turnOn'),
+					turnOffElement = doc.getElementById('turnOff'),
+					searchElement = doc.getElementById('search'),
+					paletteElement = doc.getElementById('palette'),
+					red = doc.getElementById('red'),
+					green = doc.getElementById('green'),
+					blue = doc.getElementById('blue'),
+					colorTableElement = doc.getElementById('color-table'),
+					setColor = function () {
+						currentColor = {
+							r : red.value,
+							g : green.value,
+							b : blue.value 
+						};
+						paletteElement.style.backgroundColor = "rgb("+[currentColor.r,currentColor.g,currentColor.b].join(',')+")";
+					},
+					onReady = function () {
+						currentState.connected = turnOnElement.disabled = turnOffElement.disabled = false;
+						colorTableElement.hidden = false;
+					},
+					currentState = function () {
+						colorTableElement.hidden = true;
+						turnOnElement.disabled = true;
+						turnOffElement.disabled = true;
+						return {
+							connected: false
+						};
+					}(),
+					searchClicked = function () {
+						  if (!nav.bluetooth) {
+							alert('Web Bluetooth is disabled! Please go to chrome://flags and enable it.');
+							return;
+						}	
+						 nav.bluetooth.requestDevice({
+								filters: [{ services: [0xffe5] }]
+						 }).then(function(device){
+							console.log('Connecting to device ' + device);
+							return device.gatt.connect();
+						 }).then(function(server){
+							console.log('Getting Service 0xffe5');
+							return server.getPrimaryService(0xffe5);
+						 }) .then(service => {
+							console.log('Getting Characteristic 0xffe9');
+							return service.getCharacteristic(0xffe9);
+						})
+						.then(characteristic => {
+							console.log('Ready!');
+							onReady();
+							ledCharacteristic = characteristic;
+						})
+						.catch(error => {
+							console.log('Oh no!! ' + error);
+						});;
+					},
+					turnOnClicked = function () {
+						sendCommand([0xcc, 0x23, 0x33])
+						.then(function(){
+							turnOnElement.disabled = true;
+							turnOffElement.disabled = false;
+						});
+					},
+					turnOffClicked = function () {
+						sendCommand([0xcc, 0x24, 0x33])
+						.then(function(){
+							turnOnElement.disabled = false;
+							turnOffElement.disabled = true;
+						});
+					},
+					setBulbColor = function () {
+						sendCommand([0x56, currentColor.r, currentColor.g, currentColor.b, 0x00, 0xf0, 0xaa]);
+					},
+					sendCommand = function (array) {
+						var data = new Uint8Array(array);
+						return ledCharacteristic.writeValue(data);
+					};
+
+				searchElement.addEventListener('click', searchClicked);
+				turnOnElement.addEventListener('click', turnOnClicked);
+				turnOffElement.addEventListener('click', turnOffClicked);
+				paletteElement.addEventListener('click', setBulbColor);
+				var elements = document.getElementsByClassName('color-input');
+				setColor();
+				for(var i = 0; i < elements.length; i += 1){
+					elements[i].addEventListener('change', setColor);
+				}
+			})(navigator, document);
+		</script>
+</body>
+
+</html>
